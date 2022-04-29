@@ -3117,7 +3117,7 @@ if (sizeof($p)>0) {
 	        $output['monthlist']=$mmm;
 
 
-		$sql="select * from nua_monthly_member_census where dependent_code = '' and month_id = '" . $month_id . "' and  company_id = " . $company_id . " order by employee_code, dependent_code, client_plan";
+		$sql="select * from nua_monthly_member_census where dependent_code = '' and month_id = '" . $month_id . "' and  company_id = " . $company_id . " order by last_name, first_name";
 		$e=$this->X->sql($sql);
 		$r=array();
                 $last="XXX";
@@ -6387,10 +6387,15 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
 		if ($output['user']['forced_off']>0) return $output;
 		$user=$output['user'];
 		if ($data['id']=="") {
+                   $sort="name";
+		} else {
+		   $sort = $data['id'];
+		}
+		if ($data['id2']=="") {
                    $date=date_create();
                    $mid=date_format($date,'Y-m');
 		} else {
-		        $mid = $data['id'];
+		        $mid = $data['id2'];
 		}
                 $last_month=$mid; 
                 if ($last_month=='2022-01') $month_id='2022-02';
@@ -6406,7 +6411,7 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 if ($last_month=='2022-11') $month_id='2022-12';
                 if ($last_month=='2022-12') $month_id='2023-01';
                 if ($last_month=='2023-01') $month_id='2023-02';
-
+$month_id="2022-04";
                 $output['month_id']=$month_id;
 
 		$sql="select * from nua_company_invoice where month_id = '" . $month_id . "' and company_id in (select id from nua_company where org_id = 17)";
@@ -6443,7 +6448,17 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 array_push($monthlist,$month);
                 $output['monthlist']=$monthlist;
 
- $sql="select * from nua_company_invoice where month_id = '" . $month_id . "' and email_sent = 'N' and  company_id in (select id from nua_company where org_id = 17) order by company_name";
+		$sql="select * from nua_company_invoice where month_id = '" . $month_id . "' and company_id in ";
+		$sql.=" (select id from nua_company where org_id = 17) order by ";
+		if ($sort=="name") {
+		    $sql.=" company_name";
+		    $output['sort']=$sort;
+		} else {
+		    $sql.=" grand_total_float desc";    
+		    $output['sort']="total";
+		}
+
+
                 $d=$this->X->sql($sql);
                 $list=array();
 		foreach($d as $e) { 
@@ -6710,7 +6725,7 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 if ($month_id=='2021-01') $month_id="2021-02";
 
                 $output['month_id']=$month_id;
-                $sql="select * from nua_monthly_member_terminations where client_id <> '' and month_id = '" . $month_id . "' limit 500";
+                $sql="select * from nua_monthly_member_terminations where client_id <> '' and month_id >= '" . $month_id . "' limit 500";
                 $d=$this->X->sql($sql); 
                  
 		$l=array();
@@ -6753,7 +6768,7 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 if ($month_id=='2021-01') $month_id="2021-02";
 
                 $output['month_id']=$month_id;
-                $sql="select * from nua_monthly_member_additions where client_id <> '' and month_id = '" . $month_id . "' limit 500";
+                $sql="select * from nua_monthly_member_additions where client_id <> '' and month_id >= '" . $month_id . "' limit 500";
                 $d=$this->X->sql($sql); 
 		$l=array();
                  foreach($d as $e) {
@@ -6883,7 +6898,7 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 if ($month_id=='2021-03') $month_id="2021-04";
                 if ($month_id=='2021-02') $month_id="2021-03";
                 if ($month_id=='2021-01') $month_id="2021-02";
-		$sql="select * from nua_company where org_id = 17 and invoicing = 'Y' order by company_name";
+		$sql="select * from nua_company where org_id = 17 order by company_name";
 				
 		$list=array();
                 $d=$this->X->sql($sql); 

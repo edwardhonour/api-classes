@@ -258,7 +258,9 @@ function postEmployeeLookup($data) {
     function getUserProfile($data) {
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;
-                 $broker_id=$output['user']['broker_id'];
+                 foreach($output['user'] as $name => $value) {
+                      $output[$name]=$value;
+                 }
                  $formData=array();
 		 $sql="select * from nua_user where id = " . $data['uid'];
 		 $u=$this->X->sql($sql);
@@ -269,59 +271,6 @@ function postEmployeeLookup($data) {
 		       }
                  }
 		 $output['formData']=$formData;
-            
-                 $brokerData=array();
-		 $sql="select * from nua_broker where id = " . $broker_id;
-		 $u=$this->X->sql($sql);
-                 foreach($u[0] as $name => $value) {
-                      $output[$name]=$value;
-		       if ($name!="create_timestamp") {
-                            $formData[$name]=$value;
-		       }
-                 }
-
-		$sql="select * from nua_doc where employee_id = 0 and broker_id = " . $broker_id . " and doc_title not in ";
-                $sql.=" ('CENSUS','COMPANY','PLANS','PRE','ENROLL','ADDITIONS','QUOTING','ENROLLMENT')";
-		$p=$this->X->sql($sql);
-		$doc=array();
-		foreach($p as $q) {
-			// get the ID as an int.
-			$id=$q['id'];
-			// convert it to a string.
-			$id_str=strval($id);
-			// convert the string to an array;
-			$split_id=str_split($id_str);
-			// md5 hash the ID
-		        $key=md5($id_str);
-			// convert the key ro an array.
-			$sp=str_split($key);
-
-			// start the string. 
-			// -- Char 1 and 2 of key + length of ID + A; 
-			$k=$sp[0].$sp[1].strlen($id_str).'a';
-			$hashloc=2;
-
-			//loop through ID.
-                        for ($i=0;$i<strlen($id_str);$i++) {
-				$k.=$id_str[$i];
-			        $padding=fmod(intval($id_str[$i]),5);
-				for($j=0;$j<$padding;$j++) {
-					$hashloc++;
-					if ($hashloc>=strlen($key)) $hashloc=0;
-				        $k.=$sp[$hashloc];
-			        }
-			
-			}
-				for($j=$hashloc;$j<strlen($key);$j++) {
-				        $k.=$sp[$j];
-			        }
-			$q['key']=$k;
-			array_push($doc,$q);
-		}
-
-		$output['docs']=$doc;
-                
-		 $output['brokerData']=$formData;
 		 return $output;
 	}
 
@@ -480,13 +429,10 @@ function postEmployeeLookup($data) {
 	function getEditCompany($data,$table_name) {
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;
-	         $sql="select * from nua_company where id = " . $data['id'];
-	  	$company=$this->X->sql($sql);
-		$output['formData']=$company[0];
-		$sql="select id, org_name from nua_org order by org_name";
-		$org=$this->X->sql($sql);
-		$output['select']=$org;
-                $d=$this->X->sql($sql);
+	         $sql="select * from nua_company where id = " . $output['user']['company_id'];
+	  	 $company=$this->X->sql($sql);
+		 $output['formData']=$company[0];
+                 $d=$this->X->sql($sql);
                  return $output;		
 	}
 
@@ -762,7 +708,6 @@ function postEmployeeLookup($data) {
    function postEnroll($data) {
 	   $token=$data['data']['token'];
 	   $token=str_replace("/e/","",$token);
-	   $token=str_replace("/enroll/","",$token);
 		if ($token=="") {
    				$output=array();
 				$output['error_code']="1";
@@ -1043,97 +988,238 @@ function getTestDashboard($data) {
         $u=$this->X->sql($sql);
         $user=$u[0];
 	$uid=$data['uid'];
-	//--
-	//
-	// 
+        $company_id=$user['company_id'];
+        if ($company_id==0) $company_id = 5556;
+        $sql="select * from nua_company where id = " . $company_id;
+        $u=$this->X->sql($sql);
+        $company=$u[0];
+        $output['company']=$company; 
 	$org_id=$user['org_id'];
         $user_id=$uid;
         $role=$user['role'];
-        if ($m=="2022-03") $month_id = "2022-04";
-        if ($m=="2022-04") $month_id = "2022-05";
-        if ($m=="2022-05") $month_id = "2022-06";
-        if ($m=="2022-06") $month_id = "2022-07";
-
-        //
-        //-- Active Companies
-	//
-        if ($role=='badmin') {
-	   $sql="select count(*) as c from nua_company where status in ('enrolled') and org_id = " . $user['org_id'] . " and invoicing = 'Y'";
-	} else {
-	   $sql="select count(*) as c from nua_company where status in ('enrolled') and broker_id = " . $user['broker_id'];
-        }
-
-
-        $prospects=$this->X->sql($sql);	
-	$output['active_count']=$prospects[0]['c'];
+        if ($m=="2022-03") $month_id = "2022-03";
+        if ($m=="2022-04") $month_id = "2022-04";
+        if ($m=="2022-05") $month_id = "2022-05";
+        if ($m=="2022-06") $month_id = "2022-06";
+        if ($m=="2022-03") $month_id2 = "2022-04";
+        if ($m=="2022-04") $month_id2 = "2022-05";
+        if ($m=="2022-05") $month_id2 = "2022-06";
+        if ($m=="2022-06") $month_id2 = "2022-07";
+        $output['month_id']=$month_id;
+        $output['month_id2']=$month_id2;
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_census where company_id = '" . $company_id . "' and month_id = '" . $month_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['member_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_additions where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['addition_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_terminations where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['termination_count']=$p[0]['c'];
+	$sql="select count(*) as c from nua_company_plan where company_id = '" . $company_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['plan_count']=$p[0]['c'];
 	
-        //
-	//-- Quotes
-	//
+	$sql="select * from nua_monthly_member_census where dependent_code = '' and month_id = '" . $month_id . "' and  company_id = " . $company_id;
+        $sql.=" order by last_name, first_name, client_plan";
+		$e=$this->X->sql($sql);
+		$r=array();
+                $last="XXX";
+		foreach($e as $f) {
+                        if ($f['coverage_level']=="") $f['coverage_level']="EE";
+                        if ($f['employee_id']==$last) {
+                               $f['employee_code']="";
+                               $f['last_name']="";
+                               $f['first_name']="";
+                               $f['middle_initial']="";
+                               $f['gender']="";
+                               $f['dob']="";
+                        }
+		        $sql="select count(*) as c from nua_monthly_member_census where dependent_code <> '' and month_id = '" . $month_id . "' and employee_id = " . $f['employee_id'];
+                        $ff=$this->X->sql($sql);
+                        if ($ff[0]['c']>0)  array_push($r,$f);
+                        $last=$f['employee_id'];
+                        $f['term']="N";
+                        array_push($r,$f);
+		}
+		$output['census']=$r;
 
-        if ($role=='badmin') {
-	   $sql="select count(*) as c from nua_quote where org_id = " . $user['org_id'];
-	} else {
-
-	   $sql="select count(*) as c from nua_quote where broker_id = " . $user['broker_id'];
-        }
-        $quotes=$this->X->sql($sql);	
-	$output['quote_count']=$quotes[0]['c'];
-
-        //
-	//-- Prospects
-	//
-
-        if ($role=='badmin') {
-	   $sql="select count(*) as c from nua_company where status in ('prospect') and org_id = " . $org_id;
-	} else {
-	   $sql="select count(*) as c from nua_company where status in ('prospect') and broker_id = " . $user['broker_id'];
-        }
-        $prospects=$this->X->sql($sql);	
-	$output['prospect_count']=$prospects[0]['c'];
-
-        //
-	//-- 
-	//
+	return $output;
 	
-        if ($role=='badmin') {
-	    $sql="select count(*) as c from nua_monthly_member_census where plan_type = '*MEDICAL*' and company_id in (select id from nua_company where org_id = " . $user['org_id'] . ") ";
-            $sql.=" and month_id = '" . $month_id . "'";
-	} else {
-	    $sql="select count(*) as c from nua_monthly_member_census where plan_type = '*MEDICAL*' and company_id in (select id from nua_company where broker_id = " . $user['broker_id'] . ") ";
-            $sql.=" and month_id = '" . $month_id . "'";
-        }
-        $quotes=$this->X->sql($sql);
-	$output['enrolled_count']=$quotes[0]['c'];
-	$output['enrolled_members']=$quotes[0]['c'];
+}
 
-        if ($role=='badmin') {
-	$sql="select * from nua_company where status = 'enrolled' and org_id = " . $user['org_id'] . " order by company_name";
-        } else {
-	$sql="select * from nua_company where status = 'enrolled' and broker_id = " . $user['broker_id'] . " order by company_name";
-        }
-	$orgs=$this->X->sql($sql);
-	$q=array();
-	foreach($orgs as $z) {
-		$rr=array();
-                $rr=$z; 
-		array_push($q,$rr);
-	}
-	$output['active']=$q;
+function getTerminationList($data) {
 
-        if ($role=='badmin') {
-	$sql="select * from nua_company where status not in ('enrolled') and org_id = " . $user['org_id'] . " order by company_name";
-        } else {
-	$sql="select * from nua_company where status not in ('enrolled') and broker_id = " . $user['broker_id'] . " order by company_name";
-        }
-	$orgs=$this->X->sql($sql);
-	$q=array();
-	foreach($orgs as $z) {
-		$rr=array();
-                $rr=$z; 
-		array_push($q,$rr);
-	}
-	$output['prospects']=$q;
+        $date=date_create();
+        $m=date_format($date,'Y-m');
+
+	$output=$this->start_output($data);
+	if ($output['user']['force_logout']>0) return $output;	
+        $sql="select * from nua_user where id = " . $output['user']['id'];
+        $u=$this->X->sql($sql);
+        $user=$u[0];
+	$uid=$data['uid'];
+        $company_id=$user['company_id'];
+        $sql="select * from nua_company where id = " . $company_id;
+        $u=$this->X->sql($sql);
+        $company=$u[0];
+        $output['company']=$company; 
+	$org_id=$user['org_id'];
+        $user_id=$uid;
+        $role=$user['role'];
+        if ($m=="2022-03") $month_id = "2022-03";
+        if ($m=="2022-04") $month_id = "2022-04";
+        if ($m=="2022-05") $month_id = "2022-05";
+        if ($m=="2022-06") $month_id = "2022-06";
+        if ($m=="2022-03") $month_id2 = "2022-04";
+        if ($m=="2022-04") $month_id2 = "2022-05";
+        if ($m=="2022-05") $month_id2 = "2022-06";
+        if ($m=="2022-06") $month_id2 = "2022-07";
+        $output['month_id']=$month_id;
+        $output['month_id2']=$month_id2;
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_census where company_id = '" . $company_id . "' and month_id = '" . $month_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['member_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_additions where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['addition_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_terminations where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['termination_count']=$p[0]['c'];
+	$sql="select count(*) as c from nua_company_plan where company_id = '" . $company_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['plan_count']=$p[0]['c'];
+	
+	$sql="select * from nua_monthly_member_terminations where dependent_code = '' and  company_id = " . $company_id;
+        $sql.=" order by month_id, last_name, first_name, client_plan";
+		$e=$this->X->sql($sql);
+		$r=array();
+                $last="XXX";
+		foreach($e as $f) {
+                        if ($f['coverage_level']=="") $f['coverage_level']="EE";
+                        if ($f['employee_id']==$last) {
+                               $f['employee_code']="";
+                               $f['last_name']="";
+                               $f['first_name']="";
+                               $f['middle_initial']="";
+                               $f['gender']="";
+                               $f['dob']="";
+                        }
+		        $sql="select count(*) as c from nua_monthly_member_terminations where dependent_code <> '' and month_id = '" . $month_id . "' and employee_id = " . $f['employee_id'];
+                        $ff=$this->X->sql($sql);
+                        if ($ff[0]['c']>0)  array_push($r,$f);
+                        $last=$f['employee_id'];
+                        $f['term']="N";
+                        array_push($r,$f);
+		}
+		$output['census']=$r;
+
+	return $output;
+	
+}
+
+function getMemberList($data) {
+
+        $date=date_create();
+        $m=date_format($date,'Y-m');
+
+	$output=$this->start_output($data);
+	if ($output['user']['force_logout']>0) return $output;	
+        $sql="select * from nua_user where id = " . $output['user']['id'];
+        $u=$this->X->sql($sql);
+        $user=$u[0];
+	$uid=$data['uid'];
+        $company_id=$user['company_id'];
+        $sql="select * from nua_company where id = " . $company_id;
+        $u=$this->X->sql($sql);
+        $company=$u[0];
+        $output['company']=$company; 
+	$org_id=$user['org_id'];
+        $user_id=$uid;
+        $role=$user['role'];
+        if ($m=="2022-03") $month_id = "2022-03";
+        if ($m=="2022-04") $month_id = "2022-04";
+        if ($m=="2022-05") $month_id = "2022-05";
+        if ($m=="2022-06") $month_id = "2022-06";
+        if ($m=="2022-03") $month_id2 = "2022-04";
+        if ($m=="2022-04") $month_id2 = "2022-05";
+        if ($m=="2022-05") $month_id2 = "2022-06";
+        if ($m=="2022-06") $month_id2 = "2022-07";
+	
+	$sql="select * from nua_employee where company_id = " . $company_id;
+        $sql.=" order by last_name, first_name";
+	$e=$this->X->sql($sql);
+	$output['census']=$e;
+
+	return $output;
+	
+}
+
+function getAdditionList($data) {
+
+        $date=date_create();
+        $m=date_format($date,'Y-m');
+
+	$output=$this->start_output($data);
+	if ($output['user']['force_logout']>0) return $output;	
+        $sql="select * from nua_user where id = " . $output['user']['id'];
+        $u=$this->X->sql($sql);
+        $user=$u[0];
+	$uid=$data['uid'];
+        $company_id=$user['company_id'];
+        $sql="select * from nua_company where id = " . $company_id;
+        $u=$this->X->sql($sql);
+        $company=$u[0];
+        $output['company']=$company; 
+	$org_id=$user['org_id'];
+        $user_id=$uid;
+        $role=$user['role'];
+        if ($m=="2022-03") $month_id = "2022-03";
+        if ($m=="2022-04") $month_id = "2022-04";
+        if ($m=="2022-05") $month_id = "2022-05";
+        if ($m=="2022-06") $month_id = "2022-06";
+        if ($m=="2022-03") $month_id2 = "2022-04";
+        if ($m=="2022-04") $month_id2 = "2022-05";
+        if ($m=="2022-05") $month_id2 = "2022-06";
+        if ($m=="2022-06") $month_id2 = "2022-07";
+        $output['month_id']=$month_id;
+        $output['month_id2']=$month_id2;
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_census where company_id = '" . $company_id . "' and month_id = '" . $month_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['member_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_additions where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['addition_count']=$p[0]['c'];
+	$sql="select count(distinct employee_id) as c from nua_monthly_member_terminations where company_id = '" . $company_id . "' and month_id = '" . $month_id2 . "'";
+        $p=$this->X->sql($sql);	
+	$output['termination_count']=$p[0]['c'];
+	$sql="select count(*) as c from nua_company_plan where company_id = '" . $company_id . "'";
+        $p=$this->X->sql($sql);	
+	$output['plan_count']=$p[0]['c'];
+	
+	$sql="select * from nua_monthly_member_additions where dependent_code = '' and  company_id = " . $company_id;
+        $sql.=" order by month_id, last_name, first_name, client_plan";
+		$e=$this->X->sql($sql);
+		$r=array();
+                $last="XXX";
+		foreach($e as $f) {
+                        if ($f['coverage_level']=="") $f['coverage_level']="EE";
+                        if ($f['employee_id']==$last) {
+                               $f['employee_code']="";
+                               $f['last_name']="";
+                               $f['first_name']="";
+                               $f['middle_initial']="";
+                               $f['gender']="";
+                               $f['dob']="";
+                        }
+		        $sql="select count(*) as c from nua_monthly_member_additions where dependent_code <> '' and month_id = '" . $month_id . "' and employee_id = " . $f['employee_id'];
+                        $ff=$this->X->sql($sql);
+                        if ($ff[0]['c']>0)  array_push($r,$f);
+                        $last=$f['employee_id'];
+                        $f['term']="N";
+                        array_push($r,$f);
+		}
+		$output['census']=$r;
 
 	return $output;
 	
@@ -1990,7 +2076,7 @@ function postInviteBroker($data) {
 //-- 35
 //
 
-function getAdditionList($data) {
+function XgetAdditionList($data) {
 
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;
@@ -2000,7 +2086,7 @@ function getAdditionList($data) {
 //-- 36
 //
 
-function getTerminationList($data) {
+function XgetTerminationList($data) {
 
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;
@@ -2110,28 +2196,6 @@ function getTerminationList($data) {
 //
 //
 
-    function postCensusBad($data) {
-         $post=$data['data'];
-	 $post['table_name']="nua_bad";
-         $post['action']="insert";
-         if ($post['subject']!="") {
-             $sql="select * from nua_bad where company_id = " . $post['company_id'] . " and employee_id = " . $post['employee_id'];
-	     $z=$this->X->sql($sql);
-	     if (sizeof($z)>0) {
-		 $post['id']=$z[0]['id'];
-	     }
-             $this->X->post($post);
-         } else {
-             $sql="delete from nua_bad where company_id = " . $post['company_id'] . " and employee_id = " . $post['employee_id'];
-             $this->X->execute($sql);
-         }
-         
-         $results=array();
-         $results['error_code']=0;
-         $results['error_message']="Save Complete";
-         return $results;
-    }
-
 	function getCompanyDashboard($data) {
 
 		 $output=$this->start_output($data);
@@ -2148,31 +2212,6 @@ function getTerminationList($data) {
                 $sql="select * from nua_preenrollment_census where company_id = " . $data['id'] . " order by last_name, first_name";
                 $pre=$this->X->sql($sql);
                 $output['preenroll']=$pre;
-
-		 $sql="select id, payment_date, bank, deposit_type, reference_number, amount_received, applied_to from nua_payment ";
-                 $sql.=" where company_id = " . $data['id'] . " union ";
-		 $sql.=" select id, due_date as payment_date, '---' as bank, 'INVOICE' as deposit_type, ";
-                 $sql.=" invoice_number as reference_number, grand_total_float as amount_received, month_id as applied_to from ";
-                 $sql.=" nua_company_invoice where company_id = " . $data['id'] . " order by 2";
-                 $g=$this->X->sql($sql);
-		 $hh=array();
-                 $balance_due=0;
-		 foreach($g as $h) {
-		      if ($h['deposit_type']!='INVOICE') $h['amount_received']='-' . $h['amount_received'];
-                      $balance_due+=floatval($h['amount_received']);
-                      $h['running']=number_format($balance_due,2);
-		      $h['amount_received']=number_format($h['amount_received'],2);
-                      array_push($hh,$h);
-                 }
-                 $output['payments']=$hh;
-		 $output['balance_due']=number_format($balance_due,2);
-
-$badData=array();
-$badData['company_id']=$data['id'];
-$badData['census_id']="";
-$badData['employee_id']="";
-$badData['subject']="";
-$output['badData']=$badData;
 
                 $sql="select * from nua_quoted_plan where company_id = " . $data['id'] . " order by plan_code";
                 $pre=$this->X->sql($sql);
@@ -2417,7 +2456,13 @@ if (sizeof($p)>0) {
                       $output['inactive']=array();
 	        }
 
-                $output['movelist']=array();
+                $sql="select id, employee_id, first_name, last_name, company_name,  plan, coverage_level, alt_company_id, alt_company_name  from nua_census order by last_name, first_name";
+		$f=$this->X->sql($sql);
+                $output['movelist']=$f;
+
+//                $sql="select id, employee_id, first_name, last_name, company_name,  plan, coverage_level, alt_company_id, alt_company_name  from nua_census where company_id not in (4977,4155,4453) order by last_name";
+//		$f=$this->X->sql($sql);
+//		$output['movelist2']=$f;
 
 		$sql="select distinct month_id from nua_monthly_member_census order by month_id desc";
 	        $monthlist=$this->X->sql($sql);
@@ -2659,30 +2704,11 @@ if (sizeof($p)>0) {
                                $f['gender']="";
                                $f['dob']="";
                         }
-                        if ($f['coverage_price']=='0') {
-                               $sql="select * from nua_company_plan where company_id = " . $data['id'] . " and plan_code = '" . $f['client_plan'] . "'";
-                               $z=$this->X->sql($sql);
-                               if (sizeof($z)>0) {
-                                  if ($f['coverage_level']=="EE") $f['coverage_price']=number_format(floatval($z[0]['ee_price']),2);
-                                  if ($f['coverage_level']=="ES") $f['coverage_price']=number_format(floatval($z[0]['ees_price']),2);
-                                  if ($f['coverage_level']=="EC") $f['coverage_price']=number_format(floatval($z[0]['eec_price']),2);
-                                  if ($f['coverage_level']=="FAM") $f['coverage_price']=number_format(floatval($z[0]['fam_price']),2);
-                               }
-                        }
+		        $sql="select count(*) as c from nua_monthly_member_census where dependent_code <> '' and month_id = '" . $month_id . "' and employee_id = " . $f['employee_id'];
+                        $ff=$this->X->sql($sql);
+                        if ($ff[0]['c']>0)  array_push($r,$f);
                         $last=$f['employee_id'];
                         $f['term']="N";
-                        $f['move']="N";
-
-                        $sql="select * from nua_bad where employee_id = " . $f['employee_id'];
-                        $ff=$this->X->sql($sql);
-                        if (sizeof($ff)>0) {
-                             $f['bad']="Y";
-                             $f['subject']=$ff[0]['subject'];
-                        } else {
-                             $f['bad']="N";
-                             $f['subject']="";
-                        }
-
                         array_push($r,$f);
 		}
 		$output['census']=$r;
@@ -3549,7 +3575,7 @@ $output['total_revenue']=$total_revenue;
                  }
 		 if ($month_id=="2022-04") {
 			 if (intval($day_id)<=5) {
-				 $array_push($termdts,"2022-04-30");
+				 array_push($termdts,"2022-04-30");
 				 $td="2022-04-30";
 			} else {
                                  $td="2022-05-31";
@@ -4105,15 +4131,15 @@ $output['total_revenue']=$total_revenue;
 		$output=$this->start_output($data);
 		if ($output['user']['forced_off']>0) return $output;
 		$user=$output['user'];
-                $sql="select * from nua_broker where id = " . $user['broker_id'];
+                $sql="select * from nua_company where id = " . $user['company_id'];
                 $b=$this->X->sql($sql);
                 if (sizeof($b)==0) {
-                   $broker_id=99999;
+                   $company_id=99999;
                 }
                 else {
-                   $broker_id=$b[0]['id'];
+                   $company_id=$b[0]['id'];
                 }
-		$sql="select * from nua_company where broker_id = " . $broker_id . " and invoicing = 'Y'  order by company_name";
+		$sql="select * from nua_company where id = " . $company_id . " order by company_name";
                 $d=$this->X->sql($sql);
                 $list=array();
                 $grand_total=0;
@@ -4126,7 +4152,7 @@ $output['total_revenue']=$total_revenue;
                     $h['billing_contact_phone']=$e['billing_contact_phone'];
                     $h['billing_contact_email']=$e['billing_contact_email'];
                     $inv=array();
-		    $sql="select * from nua_company_invoice where paid='N' and company_id = " . $e['id'] . " order by month_id";
+		    $sql="select * from nua_company_invoice where company_id = " . $e['id'] . " order by month_id";
                     $g=$this->X->sql($sql);
 		    $h['invoices']=$g; 
                     $total=0;
@@ -4136,6 +4162,25 @@ $output['total_revenue']=$total_revenue;
                 }
 		$output['list']=$list;
                 $output['grand_total']=number_format($grand_total,2);
+                return $output;		
+	}
+
+	function getPlanList($data) {
+		
+		$output=$this->start_output($data);
+		if ($output['user']['forced_off']>0) return $output;
+		$user=$output['user'];
+                $sql="select * from nua_company_plan where company_id = " . $user['company_id'] . " order by plan_code";
+                $d=$this->X->sql($sql);
+                $list=array();
+                foreach($d as $e) {
+                    $e['ee_price']=number_format($e['ee_price'],2);
+                    $e['ees_price']=number_format($e['ees_price'],2);
+                    $e['eec_price']=number_format($e['eec_price'],2);
+                    $e['fam_price']=number_format($e['fam_price'],2);
+                    array_push($list,$e);
+                }
+		$output['list']=$list;
                 return $output;		
 	}
 
