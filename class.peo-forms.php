@@ -20,6 +20,14 @@ function start_output($data) {
 		return $output;
 }
 
+function flip_date($date) {
+	$y=substr($date,0,4);
+	$m=substr($data,5,2);
+	$d=substr($data,8,2);
+	$k=$m . "/" . $d . "/" . $y;
+        return $k;
+}
+
 function sendtxt($to,$msg) {
 
     $to=str_replace("+","",$to);
@@ -1203,21 +1211,21 @@ function getTestDashboard($data) {
 	$uid=$data['uid'];
 	//--
 	//
-	$sql="select count(*) as c from nua_company where status in ('enrolled') and insured_lives <> '0'";
+	$sql="select count(*) as c from nua_company where status in ('enrolled') and member_count <> '0'";
         $prospects=$this->X->sql($sql);	
 	$output['active_count']=$prospects[0]['c'];
 	
-	$sql="select count(*) as c from nua_company where status in ('enrolled','prospect') and insured_lives = '0'";
+	$sql="select count(*) as c from nua_company where status in ('enrolled','prospect') and member_count = '0'";
         $prospects=$this->X->sql($sql);	
 	$output['prospect_count']=$prospects[0]['c'];
 	
-	$sql="select count(*) as c from nua_company where org_id = " . $user['org_id'] . " and insured_lives <> '0'";
+	$sql="select count(*) as c from nua_company where org_id = " . $user['org_id'] . " and member_count <> '0'";
         $prospects=$this->X->sql($sql);	
 	$output['prospect_count']=$prospects[0]['c'];
 	$output['new_prospect_count']=$prospects[0]['c'];
 	
 	$sql="select count(*) as c from nua_quote where org_id = " . $user['org_id'];
-	$sql="select count(*) as c from nua_company where org_id = " . $user['org_id'] . " and insured_lives =  '0'";
+	$sql="select count(*) as c from nua_company where org_id = " . $user['org_id'] . " and member_count =  '0'";
         $quotes=$this->X->sql($sql);	
 	$output['quote_count']=$quotes[0]['c'];
 	$output['new_request_count']=$quotes[0]['c'];	
@@ -1242,7 +1250,7 @@ function getTestDashboard($data) {
         $quotes=$this->X->sql($sql);
 	$output['enrolled_members']=$quotes[0]['c'];
 	
-	$sql="select * from nua_company where status = 'enrolled' and org_id = " . $user['org_id'] . " and insured_lives <> '0' order by company_name";
+	$sql="select * from nua_company where status = 'enrolled' and org_id = " . $user['org_id'] . " and member_count <> '0' order by company_name";
 	$orgs=$this->X->sql($sql);
 	$q=array();
 	foreach($orgs as $z) {
@@ -1252,7 +1260,7 @@ function getTestDashboard($data) {
 	}
 	$output['active']=$q;
 
-	$sql="select * from nua_company where status = 'enrolled' and org_id = " . $user['org_id'] . " and insured_lives = '0' order by company_name";
+	$sql="select * from nua_company where status = 'enrolled' and org_id = " . $user['org_id'] . " and member_count <> '0' order by company_name";
 	$orgs=$this->X->sql($sql);
 	$q=array();
 	foreach($orgs as $z) {
@@ -2261,7 +2269,12 @@ $d=$this->X->sql($sql);
 		
 		$sql="select * from nua_employee where id = " . $user['employee_id'];
 		$employees=$this->X->sql($sql);
-        $employee=$employees[0];		
+                $employee=array();
+		foreach($employee[0] as $name => $value) {
+                     $employee[$name]=$value;
+		     if ($name=="date_hired") $employee[$name]=$this->flip_date($value);
+		     if ($name=="date_of_birth") $employee[$name]=$this->flip_date($value);
+		}
 		$output['employee']=$employee;
 
 	   $sql="select * from nua_employee_ihq where employee_id = " . $employee_id;
@@ -5480,6 +5493,7 @@ $formData2=array();
                  if ($mnth_id=="2022-04") $month_id="2022-05";
                  if ($mnth_id=="2022-05") $month_id="2022-06";
                  if ($mnth_id=="2022-06") $month_id="2022-07";
+                 if ($mnth_id=="2022-07") $month_id="2022-08";
 
 		 $day_id=date_format($date,'d');
 		 $month=date_format($date,'m');
@@ -6898,7 +6912,7 @@ $month_id="2022-04";
                 if ($month_id=='2021-03') $month_id="2021-04";
                 if ($month_id=='2021-02') $month_id="2021-03";
                 if ($month_id=='2021-01') $month_id="2021-02";
-		$sql="select * from nua_company where org_id = 17 order by company_name";
+		$sql="select * from nua_company where org_id = 17 and member_count > 0  order by company_name";
 				
 		$list=array();
                 $d=$this->X->sql($sql); 

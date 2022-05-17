@@ -344,10 +344,30 @@ function postEmployeeLookup($data) {
           return $output;
     }
 
+    function getQuotePlan($data) {
+          $output=$this->getTableFormData($data,"nua_quoted_plan");
+          $output['formData']['company_id']=$data['id'];
+	  $output['formData']['accepted']="N";
+          return $output;
+    }
+
     function getEditClientPlan($data) {
 	 $output=$this->start_output($data);
 	 if ($output['user']['forced_off']>0) return $output;
           $sql="select * from nua_company_plan where id = " . $data['id'];
+          $f=$this->X->sql($sql);
+          $formData=array();
+          foreach($f[0] as $name => $value) {
+              $formData[$name]=$value;                                          
+	  } 
+          $output['formData']=$formData;
+          return $output;
+    }
+
+    function getEditQuotedPlan($data) {
+	 $output=$this->start_output($data);
+	 if ($output['user']['forced_off']>0) return $output;
+          $sql="select * from nua_quoted_plan where id = " . $data['id'];
           $f=$this->X->sql($sql);
           $formData=array();
           foreach($f[0] as $name => $value) {
@@ -387,6 +407,16 @@ function postEmployeeLookup($data) {
 	 $output=$this->start_output($data);
 	  if ($output['user']['forced_off']>0) return $output;
           $sql="delete from nua_company_plan where id = " . $data['data']['formData']['id'];
+          $this->X->execute($sql);
+          $output['id']=$data['data']['formData']['company_id'];
+          $output['error_code']=0;
+          return $output;
+    }
+
+    function postDeleteQuotedPlan($data) {
+	 $output=$this->start_output($data);
+	  if ($output['user']['forced_off']>0) return $output;
+          $sql="delete from nua_quoted_plan where id = " . $data['data']['formData']['id'];
           $this->X->execute($sql);
           $output['id']=$data['data']['formData']['company_id'];
           $output['error_code']=0;
@@ -433,6 +463,12 @@ function postEmployeeLookup($data) {
 
     function getAddClientPlan($data) {
                  $output=$this->getTableFormData($data,"nua_company_plan");
+                 $output['formData']['company_id']=$data['id'];
+		 return $output;
+        }
+
+    function getAddQuotedPlan($data) {
+                 $output=$this->getTableFormData($data,"nua_quoted_plan");
                  $output['formData']['company_id']=$data['id'];
 		 return $output;
         }
@@ -554,6 +590,22 @@ function postEmployeeLookup($data) {
 	//	 $sql="select id, org_name from nua_org order by org_name";
 	//	 $org=$this->X->sql($sql);
 	//	 return $org;
+	         $sql="select id, org_name from nua_org order by org_name";
+                 $org=$this->X->sql($sql);
+		 $j=array();
+                 foreach ($org as $o) {
+                     $a=array();
+                     $a['id']=$o['id'];
+                     $a['org_name']=$o['org_name'];
+                     array_push($j,$a);
+		 }
+                 return $j;
+	}
+
+    function getBrokerDropdown($data=array()) {
+	//	 $sql="select id, org_name from nua_org order by org_name";
+	//	 $org=$this->X->sql($sql);
+	//	 return $org;
 	         $sql="select id, last_name, first_name, email from nua_broker order by last_name, first_name, email";
                  $org=$this->X->sql($sql);
 		 $j=array();
@@ -572,7 +624,8 @@ function postEmployeeLookup($data) {
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;;
                  
-		 $output['select']=$this->getOrgDropdown($data);
+		 $output['select_org']=$this->getOrgDropdown($data);
+		 $output['select_broker']=$this->getBrokerDropdown($data);
 		 $output['table_name']=$table_name;
 		 $output['action']="input";
 		 $output['key']="id";
@@ -1071,7 +1124,6 @@ function postEmployeeLookup($data) {
 	     $k="artfin229!".$password;
              $h="artfin229!".$uid;
 	     $sql="SELECT * from nua_pwd where h = '" . md5($h) . "' and k = '" . md5($k) . "'";
-		 //echo $sql;
          $t=$this->X->sql($sql);		 
 		 if (sizeof($t)==0) {
 			 return $this->make_error(101,"Invalid Password");
@@ -1690,6 +1742,24 @@ function getTestDashboard($data) {
         $quotes=$this->X->sql($sql);
 	$output['enrolled_members']=$quotes[0]['c'];
 	
+		$sql="select id, org_id, company_name, contact_name, contact_phone, invoicing, status, ";
+                $sql.=" billing_contact_email as  insured_employees, insured_lives, infinity_id, broker_email ";
+                $sql.=" from nua_company order by company_name";
+		$list=array();
+                $d=$this->X->sql($sql); 
+   		$a=array();
+		foreach($d as $e) {
+                    $e['enrollment_count']=0;	
+	            $sql="select count(*) as c from nua_bad where company_id = " . $e['id'];
+	            $qu=$this->X->sql($sql);
+                    $e['bad_count']=$qu[0]['c'];	
+                    $e['plan_count']=0;
+	            $e['org_name']=$e['broker_email'];
+                    $e['contact_phone']=substr($e['contact_phone'],0,1) . '-' . substr($e['contact_phone'],1,3) . '-' .  substr($e['contact_phone'],4,3)  . '-' .  substr($e['contact_phone'],7,4);
+		    array_push($a,$e);
+		}
+		
+        $output['list']=$a;
 	return $output;
 	
 }
@@ -1823,7 +1893,6 @@ function getNuAxessDashboard($data) {
 
 function getBrokerDashboardZZ($data) {
 
-	print_r($data);
 
         $date=date_create();
         $month_id=date_format($date,'Y-m');
@@ -2161,7 +2230,7 @@ function makeInviteCode() {
 
                  $sql="select * from nua_monthly_member_census where id = " . $d['census_id'];
                  $c=$this->X->sql($sql);
-                 $po=$c[0];
+                 $post=$c[0];
 
                  if ($d['term_dt']=='01/31/2022') $month_id="2022-01";
                  if ($d['term_dt']=='02/28/2022') $month_id="2022-02";
@@ -2169,11 +2238,10 @@ function makeInviteCode() {
                  if ($d['term_dt']=='04/30/2022') $month_id="2022-04";
                  if ($d['term_dt']=='05/31/2022') $month_id="2022-05";
                  if ($d['term_dt']=='06/30/2022') $month_id="2022-06";
+                 if ($d['term_dt']=='07/31/2022') $month_id="2022-07";
+                 if ($d['term_dt']=='08/31/2022') $month_id="2022-08";
+                 if ($d['term_dt']=='09/30/2022') $month_id="2022-09";
 
-		 $sql="select * from nua_monthly_member_census where month_id = '" . $po['month_id'] . "' and employee_id = " . $po['employee_id'] . " and client_plan = '" . $po['client_plan'] . "'";
-                 $ppp=$this->X->sql($sql);
- 
-                 foreach($ppp as $post) {
                      $p=array();
 		     $p['table_name']="nua_monthly_member_terminations";
                      $p['action']="insert";
@@ -2198,11 +2266,6 @@ function makeInviteCode() {
                      $p['company_name']=$post['company_name'];
                      $p['plan_type']=$post['plan_type'];
                      $this->X->post($p);
-                     if ($month_id=="2022-02") {
-		         $sql="delete from nua_monthly_member_census where month_id = '2022-03' and employee_id = " . $po['employee_id'] . " and client_plan = '" . $po['client_plan'] . "'";
-                         $this->X->execute($sql);
-                     }
-                 }
 		     $output=array();
 		     $output['error_code']="0";
 		     return $output;
@@ -2924,6 +2987,7 @@ function postForwardCensus($data) {
 		$this->process_enrollment($d,$d['company_id']);
 		$output=array();
 		$output['error_code']="0";
+		$output['id']=$d['company_id'];
 		return $output;
 	}
 
@@ -3613,155 +3677,150 @@ $d=$this->X->sql($sql);
 }
 
 function process_enrollment($data,$company_id) {
-        $outp=array();
-        $outp['c']=1;
 
-           $X=new XRDB();
-           if (strtoupper($data['relationship'])=="EMPLOYEE"||
-                        ($data['employee_code']!=""&&$data['dependent_code']=="")||
-                        ($data['social_security_number']!=""&&$data['dependent_social_security_number']=="")) {
-                        $error='';
-                        if ($data['min_month_id']=="") {
-                                $data['min_month_id']="2022-04";
-                                $error.="Enrollment month not entered: 2022-04 Used";
-                        }
-                        if ($data['max_month_id']=="") {
-                                $data['max_month_id']="2022-05";
-                        }
 
-                        $monthlist=$this->makeMonthList($data['min_month_id'],$data['max_month_id']);
-                        $deletes=$this->makeDeleteList($data['min_month_id'],$data['max_month_id']);
+        $date=date_create();
+        $m_id=date_format($date,'Y-m');
+	if ($m_id=="2022-05") $month_id="2022-06";
+	if ($m_id=="2022-06") $month_id="2022-07";
+	if ($m_id=="2022-07") $month_id="2022-08";
+	if ($m_id=="2022-08") $month_id="2022-09";
+	if ($m_id=="2022-09") $month_id="2022-10";
+	if ($m_id=="2022-10") $month_id="2022-11";
+	if ($m_id=="2022-11") $month_id="2022-12";
+	if ($m_id=="2022-12") $month_id="2023-01";
 
-                   foreach ($deletes as $m) {
+        $X=new XRDB();
+	$post=array();
+	//
+	//EMPLOYEE
+	//
+	if ($data['relationship']=="Employee") {
+            if ($data['id']=="0"||$data['id']=="") {
+               $sql="select * from nua_employee where social_security_number = '" . $data['social_security_number'] . "' and company_id = " . $data['company_id']; 
+	       $y=$this->X->sql($sql);
+	       if (sizeof($y)>0) { $post['id']=$y[0]['id']; }
+    	    } else {
+                  $post['id']=$data['id'];
+	    }
 
-        $outp['c']=2;
-                                   $sql="delete from nua_monthly_member_census where employee_code = '" . $data['employee_code'] . "'";
-                                   $sql.=" and month_id = '" . $m . "' ";
-                                   $X->execute($sql);
+	    //-- Update Employee Record
+	    $post['table_name']="nua_employee";
+	    $post['action']="insert";
 
-                   }
+            $post['company_id']=$data['company_id'];
+            $post['first_name']=strtoupper($data['first_name']);
+            $post['last_name']=strtoupper($data['last_name']);
+            $post['middle_name']=strtoupper($data['middle_initial']);
+            $post['email']=strtolower($data['email']);
+            $post['date_hired']=$data['hire_date'];
+            $post['marital_status']=$data['marital_status'];
+            $post['gender']=$data['gender'];
+            $post['date_of_birth']=$data['date_of_birth'];
+            $post['address']=$data['address'];
+            $post['state']=$data['state'];
+            $post['city']=$data['city'];
+            $post['suite']=$data['suite'];
+            $post['zip']=$data['zip'];
+            $post['phone']=$data['contact_phone'];
+            $post['employee_name']=strtoupper($data['last_name']) . ", " . strtoupper($data['first_name']);
+            $post['work_status']=$data['work_status'];
+            $post['social_security_number']=$data['social_security_number'];
+	    //$post['dependent_social_security_number
+	    //
+	    $eff_dt="2022-01-01";
+	    if ($data['min_month_id']=="2022-02") $eff_dt="02/01/2022";
+	    if ($data['min_month_id']=="2022-03") $eff_dt="03/01/2022";
+	    if ($data['min_month_id']=="2022-04") $eff_dt="04/01/2022";
+	    if ($data['min_month_id']=="2022-05") $eff_dt="05/01/2022";
+	    if ($data['min_month_id']=="2022-06") $eff_dt="06/01/2022";
+	    if ($data['min_month_id']=="2022-07") $eff_dt="07/01/2022";
+	    if ($data['min_month_id']=="2022-08") $eff_dt="08/01/2022";
+	    if ($data['min_month_id']=="2022-09") $eff_dt="09/01/2022";
+	    if ($data['min_month_id']=="2022-10") $eff_dt="10/01/2022";
+	    if ($data['min_month_id']=="2022-11") $eff_dt="11/01/2022";
+	    if ($data['min_month_id']=="2022-12") $eff_dt="12/01/2022";
 
-        $outp['c']=3;
-                        foreach($monthlist as $month_id) {
+	    $ter_dt="";
+	    if ($data['max_month_id']=="2022-02") $ter_dt="02/28/2022";
+	    if ($data['max_month_id']=="2022-03") $ter_dt="03/31/2022";
+	    if ($data['max_month_id']=="2022-04") $ter_dt="04/30/2022";
+	    if ($data['max_month_id']=="2022-05") $ter_dt="05/31/2022";
+	    if ($data['max_month_id']=="2022-06") $ter_dt="06/30/2022";
+	    if ($data['max_month_id']=="2022-07") $ter_dt="07/31/2022";
+	    if ($data['max_month_id']=="2022-08") $ter_dt="08/31/2022";
+	    if ($data['max_month_id']=="2022-09") $ter_dt="09/30/2022";
+	    if ($data['max_month_id']=="2022-10") $ter_dt="10/31/2022";
+	    if ($data['max_month_id']=="2022-11") $ter_dt="11/30/2022";
+	    if ($data['max_month_id']=="2022-12") $ter_dt="12/31/2022";
 
-                                $p=array();
-                                $p['table_name']="nua_monthly_member_census";
-                                $p['action']="insert";
-                                $p['month_id']=$month_id;
-                                $p['employee_code']=$data['employee_code'];
-                                $p['dependent_code']=$data['dependent_code'];
-                                $p['ssn']=$data['social_security_number'];
-                                $p['company_id']=$company_id;
-                                $sql="select * from nua_company where id = " . $company_id;
-                                $c=$X->sql($sql);
+            $post['effective_date']=$eff_dt;
+            $post['medical_plan']=$data['medical_plan'];
+            $post['medical_plan_level']=$data['medical_coverage_level'];
+            $post['dental_plan']=$data['dental_plan'];
+            $post['dental_plan_level']=$data['dental_coverage_level'];
+            $post['vision_plan']=$data['vision_plan'];
+            $post['vision_plan_level']=$data['vision_coverage_level'];
 
-                                $p['company_name']=$c[0]['company_name'];
-                                $company_name=$c[0]['company_name'];
-                                $p['last_name']=strtoupper($data['last_name']);
-                                $p['first_name']=strtoupper($data['first_name']);
-                                $p['middle_initial']=strtoupper($data['middle_initial']);
-                                $p['middle_name']=strtoupper($data['middle_initial']);
+	    $employee_id=$this->X->post($post);
+	    $post['id']=$employee_id;
+            $post['employee_code']='n' . $employee_id;
+	    $this->X->post($post);
+	    
+	    if ($data['max_month_id']=="") {
+		    $data['max_month_id']=$month_id;
+		    $term="N";
+            } else {
+                    $term="Y";
+            }
 
-                               if ($data['relationship']=="") {
-                                    if ($data['dependent_social_security_number']=="") {
-                                        $data['relationship']="EMPLOYEE";
-                                    } else {
-                                        $data['relationship']="UNKNOWN";
-                                        $error.=", Dependent relationship not entered";
-                                    }
-                                }
-                                $p['relationship']=$data['relationship'];
-                                $p['dob']=substr($data['date_of_birth'],0,10);
-                                $p['ssn']=$data['social_security_number'];
-                                if (strtoupper($data['gender'])!="M"&&strtoupper($data['gender'])!="F") {
-                                    $error.=", Gender not M or F";
-                                }
-                                $p['gender']=strtoupper($data['gender']);
-                                if (substr(strtoupper($data['marital_status']),0,1)!="M"&&substr(strtoupper($data['marital_status']),0,1)!="F") {
-                                  //  $error.=", Marital Status not M or S"; 
-                                }
-                                $p['marital_status']=strtoupper(substr($data['marital_status'],0,1));
-                                $p['address']=strtoupper($data['address']);
-                                $p['address2']=strtoupper($data['suite']);
-                                $p['city']=strtoupper($data['city']);
-                                $p['state']=strtoupper($data['state']);
-                                $p['zip']=strtoupper($data['zip']);
-                                $p['email']=strtolower($data['email']);
-                                $p['phone']=$data['contact_phone'];
-                                $p['date_hired']=substr($data['date_hired'],0,10);
+            $monthlist=$this->makeMonthList($data['min_month_id'],$data['max_month_id']);
+            $deletes=$this->makeDeleteList($data['min_month_id'],$data['max_month_id']);
 
-        $outp['c']=4;
 
-                           //-- Find out if Employee is already in company.
-                           //--
-if ($p['employee_code']=="") {
-         $sql="select * from nua_employee where company_id = " . $company_id . " and last_name = '" . str_replace("'","''",$p['last_name']) . "' AND ";
-         $sql.=" first_name = '" . str_replace("'","''",$p['first_name']) . "' AND ";
-         $sql.=" middle_name = '" . str_replace("'","''",$p['middle_name']) . "'";
+            foreach ($deletes as $m) {
+                   $sql="delete from nua_monthly_member_census where employee_id = '" . $employee_id . "'";
+                   $sql.=" and month_id = '" . $m . "' ";
+                   $X->execute($sql);
+            }
 
-                           $e=$X->sql($sql);
-                           $employee_id=0;
-                           $employee_code='n0';
-                           if (sizeof($e)>0) {
-                                $employee_id = $e[0]['id'];
-                                $p['employee_id']=$employee_id;
-                                $employee_code = $e[0]['employee_code'];
-                                $p['employee_code']=$employee_code;
-                           }
-} else {
+            foreach($monthlist as $mo_id) {
 
-         $sql="select * from nua_employee where employee_code = '" . $p['employee_code'] . "'";
-                           $e=$X->sql($sql);
+                   $p=array();
+                   $p['table_name']="nua_monthly_member_census";
+                   $p['action']="insert";
+                   $p['month_id']=$mo_id;
+                   $p['employee_code']='n' . $employee_id;
+                   $p['dependent_code']="";
+                   $p['ssn']=$data['social_security_number'];
+                   $p['company_id']=$company_id;
+                   $sql="select * from nua_company where id = " . $company_id;
+                   $c=$X->sql($sql);
 
-                           $employee_id=0;
-                           $employee_code='n0';
-                           if (sizeof($e)>0) {
-                                $employee_id = $e[0]['id'];
-                                $p['employee_id']=$employee_id;
-                                $employee_code = $p['employee_code'];
-                           } else {
-                                   $sql="insert into nua_employee (id, employee_code, create_timestamp) values (";
-                                   $sql.=str_replace('n','',$p['employee_code']) . ",'" . $p['employee_code'] . "','2022-01-01')";
-                                   $X->execute($sql);
-                                   $employee_id=str_replace('n','',$p['employee_code']);
-                                   $employee_code=$p['employee_code'];
-                                   $p['employee_id']=$employee_id;
-                           }
-}
-        $outp['c']=5;
-                           $emp=array();
-                           $emp['table_name']="nua_employee";
-                           $emp['action']="insert";
-                           $emp['company_id']=$company_id;
-                           $emp['last_name']=strtoupper($data['last_name']);
-                           $emp['first_name']=strtoupper($data['first_name']);
-                           $emp['middle_name']=strtoupper($data['middle_initial']);
-                           $emp['social_security_number']=$data['social_security_number'];
+                   $p['company_name']=$c[0]['company_name'];
+                   $company_name=$c[0]['company_name'];
+                   $p['last_name']=strtoupper($data['last_name']);
+                   $p['first_name']=strtoupper($data['first_name']);
+                   $p['middle_initial']=strtoupper($data['middle_initial']);
+                   $p['middle_name']=strtoupper($data['middle_initial']);
 
-                           $emp['date_of_birth']=substr($data['date_of_birth'],0,10);
-                           $emp['gender']=$data['gender'];
-                           $emp['marital_status']=strtoupper(substr($data['marital_status'],0,1));
-                           $emp['address']=strtoupper($data['address']);
-                           $emp['suite']=strtoupper($data['suite']);
-                           $emp['city']=strtoupper($data['city']);
-                           $emp['state']=strtoupper($data['state']);
-                           $emp['zip']=$data['zip'];
-                           $emp['email']=strtolower($data['email']);
-                           $emp['phone']=$data['contact_phone'];
-                           $emp['date_hired']=substr($data['date_hired'],0,10);
-                          $emp['work_status']=$data['work_status'];
-                           $emp['eff_dt']=substr($data['eff_dt'],0,10);
-                           $emp['medical_eff_dt']=substr($data['eff_dt'],0,10);
-                           $emp['medical_plan']=strtoupper($data['medical_plan']);
-                           $emp['medical_plan_level']=strtoupper($data['medical_coverage_level']);
-                           $emp['dental_plan']=strtoupper($data['dental_plan']);
-                           $emp['dental_plan_level']=strtoupper($data['dental_coverage_level']);
-                           $emp['vision_plan']=strtoupper($data['vision_plan']);
-                           $emp['vision_plan_level']=strtoupper($data['vision_coverage_level']);
-                           if ($data['medical_plan']==""&&$data['dental_plan']==""&&$data['vision_plan']=="") {
-                               $error.=", No plan selected";
-                           }
-                           if ($data['medical_plan']!='') {
+                   $data['relationship']="EMPLOYEE";
+                   $p['relationship']=$data['relationship'];
+                   $p['eff_dt']=$eff_dt;
+                   $p['dob']=substr($data['date_of_birth'],0,10);
+                   $p['ssn']=$data['social_security_number'];
+                   $p['gender']=strtoupper($data['gender']);
+                   $p['marital_status']=strtoupper(substr($data['marital_status'],0,1));
+                   $p['address']=strtoupper($data['address']);
+                   $p['address2']=strtoupper($data['suite']);
+                   $p['city']=strtoupper($data['city']);
+                   $p['state']=strtoupper($data['state']);
+                   $p['zip']=strtoupper($data['zip']);
+                   $p['email']=strtolower($data['email']);
+                   $p['phone']=$data['contact_phone'];
+                   $p['date_hired']=substr($data['hire_date'],0,10);
+
+                   if ($data['medical_plan']!='') {
                                $sql="select * from nua_company_plan where plan_code = '" . strtoupper($data['medical_plan']) . "' and company_id = " . $company_id;
                                $r=$X->sql($sql);
                                if (sizeof($r)>0) {
@@ -3770,15 +3829,30 @@ if ($p['employee_code']=="") {
                                   $eec_price=$r[0]['eec_price'];
                                   $fam_price=$r[0]['fam_price'];
                                   $med_apa_code=strtoupper($r[0]['APA_CODE']);
+				  $ep=array();
+				  $ep['table_name']="nua_employee_plan";
+				  $ep['action']="insert";
+				  $ep['employee_id']=$employee_id;
+				  $ep['plan_id']=strtoupper($data['medical_plan']);
+				  if ($data['medical_coverage_level']=="EE") $ep['peo_premium']=$ee_price;
+				  if ($data['medical_coverage_level']=="ES") $ep['peo_premium']=$ees_price;
+				  if ($data['medical_coverage_level']=="EC") $ep['peo_premium']=$eec_price;
+				  if ($data['medical_coverage_level']=="FAM") $ep['peo_premium']=$fam_price;
+				  $ep['effective_date']=$eff_dt;
+                                  $ep['plan_type']=$data['medical_coverage_level'];
+                                  $ep['plan_code_type']="*MEDICAL*";
+                                  $sql="select * from nua_employee_plan where employee_id = " . $employee_id . " and ";
+				  $sql.=" plan_code_type = '*MEDICAL*'";
+				  $u=$this->X->sql($sql);
+				  if (sizeof($u)>0) $ep['id']=$u[0]['id'];
+				  $this->X->post($ep);
                                }  else {
                                   $emp['medical_plan']="";
                                   $emp['medical_plan_level']="";
                                   $med_apa_code="";
-                                  $error.=", INVALID MED Plan";
                                }
-                           }
-        $outp['c']=6;
-                           if ($data['dental_plan']!='') {
+                   }
+                   if ($data['dental_plan']!='') {
                                $sql="select * from nua_company_plan where plan_code = '" . strtoupper($data['dental_plan']) . "' and company_id = " . $company_id;
                                $r=$X->sql($sql);
                                if (sizeof($r)>0) {
@@ -3787,16 +3861,32 @@ if ($p['employee_code']=="") {
                                   $deec_price=$r[0]['eec_price'];
                                   $dfam_price=$r[0]['fam_price'];
                                   $dental_apa_code="GUARDHIGH";
+				  $ep=array();
+				  $ep['table_name']="nua_employee_plan";
+				  $ep['action']="insert";
+				  $ep['employee_id']=$employee_id;
+				  $ep['plan_id']=strtoupper($data['medical_plan']);
+				  if ($data['medical_coverage_level']=="EE") $ep['peo_premium']=$ee_price;
+				  if ($data['medical_coverage_level']=="ES") $ep['peo_premium']=$ees_price;
+				  if ($data['medical_coverage_level']=="EC") $ep['peo_premium']=$eec_price;
+				  if ($data['medical_coverage_level']=="FAM") $ep['peo_premium']=$fam_price;
+				  $ep['effective_date']=$eff_dt;
+                                  $ep['plan_type']=$data['medical_coverage_level'];
+                                  $ep['plan_code_type']="*DENTAL*";
+                                  $sql="select * from nua_employee_plan where employee_id = " . $employee_id . " and ";
+				  $sql.=" plan_code_type = '*DENTAL*'";
+				  $u=$this->X->sql($sql);
+				  if (sizeof($u)>0) $ep['id']=$u[0]['id'];
+				  $this->X->post($ep);
                                } else {
                                   $dee_price="0.00";
                                   $dees_price="0.00";
                                   $deec_price="0.00";
                                   $dfam_price="0.00";
                                   $dental_apa_code="GUARDHIGH";
-                                  $error.=", INVALID DENTAL Plan";
                                }
-                           }
-                           if ($data['vision_plan']!='') {
+                   }
+                   if ($data['vision_plan']!='') {
                                $sql="select * from nua_company_plan where plan_code = '" . strtoupper($data['vision_plan']) . "' and company_id = " . $company_id;
                                $r=$X->sql($sql);
                                if (sizeof($r)>0) {
@@ -3805,39 +3895,39 @@ if ($p['employee_code']=="") {
                                   $veec_price=$r[0]['eec_price'];
                                   $vfam_price=$r[0]['fam_price'];
                                   $vision_apa_code="VSP";
+				  $ep=array();
+				  $ep['table_name']="nua_employee_plan";
+				  $ep['action']="insert";
+				  $ep['employee_id']=$employee_id;
+				  $ep['plan_id']=strtoupper($data['medical_plan']);
+				  if ($data['medical_coverage_level']=="EE") $ep['peo_premium']=$ee_price;
+				  if ($data['medical_coverage_level']=="ES") $ep['peo_premium']=$ees_price;
+				  if ($data['medical_coverage_level']=="EC") $ep['peo_premium']=$eec_price;
+				  if ($data['medical_coverage_level']=="FAM") $ep['peo_premium']=$fam_price;
+				  $ep['effective_date']=$eff_dt;
+                                  $ep['plan_type']=$data['medical_coverage_level'];
+                                  $ep['plan_code_type']="*VISION*";
+                                  $sql="select * from nua_employee_plan where employee_id = " . $employee_id . " and ";
+				  $sql.=" plan_code_type = '*VISION*'";
+				  $u=$this->X->sql($sql);
+				  if (sizeof($u)>0) $ep['id']=$u[0]['id'];
+				  $this->X->post($ep);
                                } else {
                                   $vee_price="0.00";
                                   $vees_price="0.00";
                                   $veec_price="0.00";
                                   $vfam_price="0.00";
                                   $vision_apa_code="VSP";
-                                  $error.=", INVALID VISION Plan";
                                }
                            }
-        $outp['c']=7;
 
-                           if ($employee_id!=0) {
-                                $emp['id']=$employee_id;
-                                $emp['employee_code']='n'.$employee_id;
-                                $X->post($emp);
-                           } else {
-                                $employee_id = $X->post($emp);
-                                $sql="update nua_employee set employee_code = 'n" . $employee_id . "' where id = " . $employee_id;
-                                $X->execute($sql);
-                            }
-
-                            //
-                            //-- Insert the employee into each months census from the effective date to the
-                            //-- current billing month.
-                            //--
-                           $p['month_id']=$month_id;
-                            $p['eff_dt']=substr($data['eff_dt'],0,10);
-                            $p['employee_id']=$employee_id;
-                            $p['employee_code']='n'.$employee_id;
-                            $p['company_name']=$company_name;
-                            $p['company_id']=$company_id;
-                            $p['error_msg']=$error;
-                            if ($data['medical_plan']!="") {
+                           $p['month_id']=$mo_id;
+                           $p['eff_dt']=$eff_dt;
+                           $p['employee_id']=$employee_id;
+                           $p['employee_code']='n'.$employee_id;
+                           $p['company_name']=$company_name;
+                           $p['company_id']=$company_id;
+                           if ($data['medical_plan']!="") {
                                  $p['client_plan']=strtoupper($data['medical_plan']);
                                  $p['coverage_level']=$data['medical_coverage_level'];
                                  if ($p['coverage_level']=="EE"||$p['coverage_level']=="SI") { $p['coverage_price']=$ee_price; }
@@ -3848,21 +3938,52 @@ if ($p['employee_code']=="") {
                                  $p['plan_type']="*MEDICAL*";
                                  $sql="SELECT id from nua_monthly_member_census where employee_id = " . $employee_id;
                                  $sql.=" and month_id = '" . $p['month_id'] . "' ";
-                        //         $sql.=" and client_plan = '" . strtoupper($p['client_plan']) . "' and dependent_code = ''";
                                  $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
                                  $dd=$X->sql($sql);
-                                   if (sizeof($dd)==1) {
+                                 if (sizeof($dd)==1) {
                                         $p['id']=$dd[0]['id'];
-                                   } else {
+                                 } else {
                                         $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
                                         $sql.=" and month_id = '" . $p['month_id'] . "' ";
                                         $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
                                         $X->execute($sql);
-                                   }
-                                   $X->post($p);
-                                   if (isset($p['id'])) unset($p['id']);
-                                   $p['id']="";
-        $outp['c']=8;
+                                 }
+                                 $this->X->post($p);
+                                 if (isset($p['id'])) unset($p['id']);
+                                 $p['id']="";
+                                 if ($mo_id==$data['min_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_additions";
+                                     $sql="SELECT id from nua_monthly_member_additions where employee_id = " . $employee_id;
+                                     $sql.=" and month_id = '" . $add['month_id'] . "' ";
+                                     $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_additions where employee_id = " . $employee_id;
+                                        $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
+                                        $X->execute($sql);
+                                     }
+                                     $this->X->post($add);
+				   }
+                                 if ($term=='Y'&&$mo_id==$data['max_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_terminations";
+				     $add['term_dt']=$ter_dt;
+                                     $sql="SELECT id from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                     $sql.=" and month_id = '" . $add['month_id'] . "' ";
+                                     $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                        $sql.=" and plan_type = '*MEDICAL*' and dependent_code = ''";
+                                        $X->execute($sql);
+                                     }
+                                     $this->X->post($add);
+				   }
                             } else {
                                  $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
                                  $sql.=" and month_id = '" . $p['month_id'] . "' ";
@@ -3870,84 +3991,140 @@ if ($p['employee_code']=="") {
                                  $X->execute($sql);
                             }
 
-                                if ($data['dental_plan']!="") {
-                                   $p['client_plan']=strtoupper($data['dental_plan']);
-                                   $p['coverage_level']=$data['dental_coverage_level'];
-                                   if ($p['coverage_level']=="EE"||$p['coverage_level']=="SI") { $p['coverage_price']=$dee_price; }
-                                   if ($p['coverage_level']=="ES"||$p['coverage_level']=="EES") { $p['coverage_price']=$dees_price; }
-                                   if ($p['coverage_level']=="EC"||$p['coverage_level']=="EEC") { $p['coverage_price']=$deec_price; }
-                                   if ($p['coverage_level']=="FAM"||$p['coverage_level']=="FA") { $p['coverage_price']=$dfam_price; }
-                                   $p['apa_plan']="GUARDHIGH";
-                                   $p['plan_type']="*DENTAL*";
-                                   $sql="SELECT id from nua_monthly_member_census where employee_id = " . $employee_id;
-                                   $sql.=" and month_id = '" . $p['month_id'] . "' ";
-                                 //  $sql.=" and client_plan = '" . strtoupper($p['client_plan']) . "' and dependent_code = ''";
-                                   $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
-                                   $dd=$X->sql($sql);
-                                   if (sizeof($dd)==1) {
-                                        $p['id']=$dd[0]['id'];
-                                   } else {
-                                        $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
-                                        $sql.=" and month_id = '" . $p['month_id'] . "' ";
+                            if ($data['dental_plan']!="") {
+                                $p['client_plan']=strtoupper($data['dental_plan']);
+                                $p['coverage_level']=$data['dental_coverage_level'];
+                                if ($p['coverage_level']=="EE"||$p['coverage_level']=="SI") { $p['coverage_price']=$dee_price; }
+                                if ($p['coverage_level']=="ES"||$p['coverage_level']=="EES") { $p['coverage_price']=$dees_price; }
+                                if ($p['coverage_level']=="EC"||$p['coverage_level']=="EEC") { $p['coverage_price']=$deec_price; }
+                                if ($p['coverage_level']=="FAM"||$p['coverage_level']=="FA") { $p['coverage_price']=$dfam_price; }
+                                $p['apa_plan']="GUARDHIGH";
+                                $p['plan_type']="*DENTAL*";
+                                $sql="SELECT id from nua_monthly_member_census where employee_id = " . $employee_id;
+                                $sql.=" and month_id = '" . $p['month_id'] . "' ";
+                                $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
+                                $dd=$X->sql($sql);
+                                if (sizeof($dd)==1) {
+                                     $p['id']=$dd[0]['id'];
+                                } else {
+                                     $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
+                                     $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
+                                     $X->execute($sql);
+                                 }
+                                 $X->post($p);
+                                 if (isset($p['id'])) unset($p['id']);
+                                 $p['id']="";
+                                 if ($mo_id==$data['min_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_additions";
+                                     $sql="SELECT id from nua_monthly_member_additions where employee_id = " . $employee_id;
+                                     $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_additions where employee_id = " . $employee_id;
                                         $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
                                         $X->execute($sql);
-                                   }
-                                   $X->post($p);
-                                   if (isset($p['id'])) unset($p['id']);
-                                   $p['id']="";
-        $outp['c']=9;
+                                     }
+                                     $this->X->post($add);
+				   }
+                                 if ($term=='Y'&&$mo_id==$data['max_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_terminations";
+				     $add['term_dt']=$ter_dt;
+                                     $sql="SELECT id from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                     $sql.=" and month_id = '" . $add['month_id'] . "' ";
+                                     $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                        $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
+                                        $X->execute($sql);
+                                     }
+                                     $this->X->post($add);
+				   }
                             } else {
                                  $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
                                  $sql.=" and month_id = '" . $p['month_id'] . "' ";
                                  $sql.=" and plan_type = '*DENTAL*' and dependent_code = ''";
                                  $X->execute($sql);
-
                             }
-                                if ($data['vision_plan']!="") {
-                                   $p['client_plan']=strtoupper($data['vision_plan']);
-                                   $p['coverage_level']=$data['vision_coverage_level'];
-                                   $p['apa_plan']="VSP";
-                                   if ($p['coverage_level']=="EE"||$p['coverage_level']=="SI") { $p['coverage_price']=$vee_price; }
-                                   if ($p['coverage_level']=="ES"||$p['coverage_level']=="EES") { $p['coverage_price']=$vees_price; }
-                                   if ($p['coverage_level']=="EC"||$p['coverage_level']=="EEC") { $p['coverage_price']=$veec_price; }
-                                   if ($p['coverage_level']=="FAM"||$p['coverage_level']=="FA") { $p['coverage_price']=$vfam_price; }
-                                   $p['plan_type']="*VISION*";
-                                   $sql="SELECT id from nua_monthly_member_census where employee_id = " . $employee_id;
-                                   $sql.=" and month_id = '" . $p['month_id'] . "' ";
-                                   //$sql.=" and client_plan = '" . strtoupper($p['client_plan']) . "' and dependent_code = ''";
-                                   $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
-                                   $dd=$X->sql($sql);
-                                   if (sizeof($dd)==1) {
-                                        $p['id']=$dd[0]['id'];
-                                   } else {
-                                        $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
-                                        $sql.=" and month_id = '" . $p['month_id'] . "' ";
+                            if ($data['vision_plan']!="") {
+                                 $p['client_plan']=strtoupper($data['vision_plan']);
+                                 $p['coverage_level']=$data['vision_coverage_level'];
+                                 $p['apa_plan']="VSP";
+                                 if ($p['coverage_level']=="EE"||$p['coverage_level']=="SI") { $p['coverage_price']=$vee_price; }
+                                 if ($p['coverage_level']=="ES"||$p['coverage_level']=="EES") { $p['coverage_price']=$vees_price; }
+                                 if ($p['coverage_level']=="EC"||$p['coverage_level']=="EEC") { $p['coverage_price']=$veec_price; }
+                                 if ($p['coverage_level']=="FAM"||$p['coverage_level']=="FA") { $p['coverage_price']=$vfam_price; }
+                                 $p['plan_type']="*VISION*";
+                                 $sql="SELECT id from nua_monthly_member_census where employee_id = " . $employee_id;
+                                 $sql.=" and month_id = '" . $p['month_id'] . "' ";
+                                 //$sql.=" and client_plan = '" . strtoupper($p['client_plan']) . "' and dependent_code = ''";
+                                 $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
+                                 $dd=$X->sql($sql);
+                                 if (sizeof($dd)==1) {
+                                       $p['id']=$dd[0]['id'];
+                                 } else {
+                                      $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
+                                      $sql.=" and month_id = '" . $p['month_id'] . "' ";
+                                      $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
+                                      $X->execute($sql);
+                                 }
+                                 $X->post($p);
+                                 if (isset($p['id'])) unset($p['id']);
+                                 $p['id']="";
+                                 if ($mo_id==$data['min_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_additions";
+                                     $sql="SELECT id from nua_monthly_member_additions where employee_id = " . $employee_id;
+                                     $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_additions where employee_id = " . $employee_id;
                                         $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
                                         $X->execute($sql);
-                                   }
-                                   $X->post($p);
-                                   if (isset($p['id'])) unset($p['id']);
-                                   $p['id']="";
+                                     }
+                                     $this->X->post($add);
+				   }
+                                 if ($term=='Y'&&$mo_id==$data['max_month_id']) {
+                                     $add=$p;
+				     $add['table_name']="nua_monthly_member_terminations";
+				     $add['term_dt']=$ter_dt;
+                                     $sql="SELECT id from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                     $sql.=" and month_id = '" . $add['month_id'] . "' ";
+                                     $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
+                                     $dd=$X->sql($sql);
+                                     if (sizeof($dd)==1) {
+                                        $add['id']=$dd[0]['id'];
+                                     } else {
+                                        $sql="delete from nua_monthly_member_terminations where employee_id = " . $employee_id;
+                                        $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
+                                        $X->execute($sql);
+                                     }
+                                     $this->X->post($add);
+				   }
                             } else {
                                  $sql="delete from nua_monthly_member_census where employee_id = " . $employee_id;
                                  $sql.=" and month_id = '" . $p['month_id'] . "' ";
                                  $sql.=" and plan_type = '*VISION*' and dependent_code = ''";
                                  $X->execute($sql);
-
                             }
-        $outp['c']=10;
                    }  // Months 
-                        } // Employee 
-                                if (strtoupper($data['relationship'])!="EMPLOYEE"||
-                                ($data['employee_code']!=""&&$data['dependent_code']!="")||
-                                ($data['social_security_number']!=""&&$data['dependent_social_security_number']!="")) {
-                                if ($data['employee_code']!="") {
-                                     $sql="select id, employee_code from nua_employee where employee_code = '" . $data['employee_code'] . "'";
-                                } else {
-                                     $sql="select id, employee_code from nua_employee where social_security_number = '" . $data['social_security_number'] . "'";           
-                                }
-                                $emps=$X->sql($sql);
- if (sizeof($emps)>0) {
+                } // Employee 
+                  if (strtoupper($data['relationship'])!="EMPLOYEE") {
+                        if ($data['employee_code']!="") {
+                             $sql="select id, employee_code from nua_employee where company_id = " . $company_id . " and employee_code = '" . $data['employee_code'] . "'";
+                        } else {
+                             $sql="select id, employee_code from nua_employee where company_id = " . $company_id . " and social_security_number = '" . $data['social_security_number'] . "'";           
+                        }
+                        $emps=$X->sql($sql);
+                        if (sizeof($emps)>0) {
                                 $employee_id=$emps[0]['id'];
                                 $employee_code=$emps[0]['employee_code'];
 
@@ -3958,13 +4135,11 @@ if ($p['employee_code']=="") {
                                 //-- Find Existing Dependent
                                 //--
                                 $sql="select * from nua_employee_dependent where employee_id = " . $employee_id;
-                                $sql.=" and last_name = '" . strtoupper(str_replace("'","''",$data['last_name'])) . "' AND ";
-                                $sql.=" first_name = '" . strtoupper(str_replace("'","''",$data['first_name'])) . "' AND ";
-                                $sql.=" middle_name = '" . strtoupper(str_replace("'","''",$data['middle_initial'])) . "'";
+                                $sql.=" and social_security_number = '" . $data['dependent_social_security_number'] . "'";
                                 $e=$X->sql($sql);
 
                                 $dep['employee_id']=$employee_id;
-                                $dep['employee_code']=$employee_code;
+                                $dep['employee_code']="n" . $employee_id;
                                 $dep['company_id']=$company_id;
                                 $dep['first_name']=strtoupper($data['first_name']);
                                 $dep['last_name']=strtoupper($data['last_name']);
@@ -3974,9 +4149,10 @@ if ($p['employee_code']=="") {
                                 $dep['social_security_number']=$data['dependent_social_security_number'];
                                 $dep['relationship']=strtoupper($data['relationship']);
                                 if (strtoupper($dep['relationship'])=='WIFE') $dep['relation_type']="02";
-                                if (strtoupper($dep['relationship'])=='HUSBAND') $dep['relation_type']="02";
-                                if (strtoupper($dep['relationship'])=='SON') $dep['relation_type']="03";
-                                if (strtoupper($dep['relationship'])=='DAUGHTER') $dep['relation_type']="03";
+                                if (strtoupper($dep['relationship'])=='HUSBAND') $dep['relation_type']="03";
+                                if (strtoupper($dep['relationship'])=='SON') $dep['relation_type']="04";
+                                if (strtoupper($dep['relationship'])=='DAUGHTER') $dep['relation_type']="05";
+                                if (strtoupper($dep['relationship'])=='OTHER') $dep['relation_type']="06";
                                 if (sizeof($e)>0) {
                                     $dep['id']=$e[0]['id'];
                                     $dep['dependent_id']=$e[0]['dependent_id'];
@@ -4127,6 +4303,7 @@ if ($p['employee_code']=="") {
 		 $output=$this->start_output($data);
 		 if ($output['user']['forced_off']>0) return $output;
 		 $company_id=$data['id2'];
+
 		 $sql="select * from nua_company_plan where plan_type = '*MEDICAL*' and company_id = " . $company_id . " order by plan_code";
 		 $p=$this->X->sql($sql);
 		 $plans=array();
@@ -4163,7 +4340,7 @@ if ($p['employee_code']=="") {
 		 if ($data['id']=="0"||$data['id']=="") {
                       $formData=array();
 		      $formData['min_month_id']=$month_id;
-                      $formData['max_month_id']=$month_id;
+                      $formData['max_month_id']="";
 		      $formData['company_id']=$company_id;
 		      $formData['company_name']=$company['company_name'];
                       $formData['employee_code']="";
@@ -4196,7 +4373,7 @@ if ($p['employee_code']=="") {
                       $formData['company_id']=$data['id2'];
                       $formData['id']=$data['id'];
 		 } else {
-                       $sql="select * from num_monthly_member_census where employee_id = " . $data['id'] . " and month_id = '" . $month_id . "'";
+                       $sql="select * from nua_monthly_member_census where employee_id = " . $data['id'] . " and month_id = '" . $month_id . "'";
                        $c=$this->X->sql($sql);
 		       if (sizeof($c)>0) {
 			     $census=$c[0];
@@ -4210,12 +4387,20 @@ if ($p['employee_code']=="") {
 		       } else {
                              $employee=array();
 		       }
-		       $sql="select min(month_id) as min_month_id, max(month_id) as max_month_id from nua_monthly_member_census where employee_id = " . $data['id'];
-		       $gg=$this->X->sql($sql);
+		      $sql="select min(month_id) as min_month_id, max(month_id) as max_month_id from nua_monthly_member_census where employee_id = " . $data['id'];
+		      $gg=$this->X->sql($sql);
 
                       $formData=array();
-		      $formData['min_month_id']=$gg[0]['min_$month_id'];
-                      $formData['max_month_id']=$gg[0]['max_month_id'];
+		      $formData['min_month_id']=$gg[0]['min_month_id'];
+
+		      $sql="select month_id from nua_monthly_member_terminations where employee_id = " . $data['id'];
+		      $hh=$this->X->sql($sql);
+		      if (sizeof($hh)>0) {
+                            $formData['max_month_id']=$hh[0]['month_id'];
+		      } else {
+                            $formData['max_month_id']="";
+                      }
+
 		      if (isset($census['employee_code'])) { $formData['employee_code']=$census['employee_code']; } else { $formData['employee_code']=""; }
 		      if (isset($census['dependent_code'])) { $formData['dependent_code']=$census['dependent_code']; } else { $formData['dependent_code']=""; }
                       $formData['social_security_number']=$employee['social_security_number'];
@@ -4235,8 +4420,8 @@ if ($p['employee_code']=="") {
                       $formData['state']=$employee['state'];
                       $formData['zip']=$employee['zip'];
                       $formData['email']=$employee['email'];
-                      $formData['contact_phone']=$employee['contact_phone'];
-                      $formData['hire_date']=$employee['hire_date'];
+                      $formData['contact_phone']=$employee['phone'];
+                      $formData['hire_date']=$employee['date_hired'];
                       $formData['work_status']=$employee['work_status'];
                       $formData['eff_dt']=$census['eff_dt'];
                       $formData['medical_plan']=$employee['medical_plan'];
@@ -4244,9 +4429,9 @@ if ($p['employee_code']=="") {
                       $formData['dental_plan']=$employee['dental_plan'];
                       $formData['dental_coverage_level']=$employee['dental_plan_level'];
                       $formData['vision_plan']=$employee['vision_plan'];
-                      $formData['vision_coverage_level']=$employeei['vision_plan_level'];
+                      $formData['vision_coverage_level']=$employee['vision_plan_level'];
 		      $formData['id']=$employee['id'];
-		       
+		      
 		 }
                  $output['formData']=$formData;
 		 return $output;
@@ -4839,19 +5024,28 @@ function getFamilyMedications($data) {
                     if ($y['func']=="MEMBER-LOOKUP") $output['MEMBER-LOOKUP']="1";
                     if ($y['func']=="MOVE-EMPLOYEES") $output['MOVE-EMPLOYEES']="1";
 		 }
-		 $sql="select id, payment_date, bank, deposit_type, reference_number, amount_received, applied_to from nua_payment ";
+		 $sql="select id, payment_date, bank, deposit_type, reference_number, amount_received, applied_to, 'paid' as status from nua_payment ";
                  $sql.=" where company_id = " . $data['id'] . " union ";
 		 $sql.=" select id, due_date as payment_date, '---' as bank, 'INVOICE' as deposit_type, ";
-                 $sql.=" invoice_number as reference_number, grand_total_float as amount_received, month_id as applied_to from ";
+                 $sql.=" invoice_number as reference_number, grand_total_float as amount_received, month_id as applied_to, status  from ";
                  $sql.=" nua_company_invoice where company_id = " . $data['id'] . " order by 2";
                  $g=$this->X->sql($sql);
 		 $hh=array();
                  $balance_due=0;
 		 foreach($g as $h) {
 		      if ($h['deposit_type']!='INVOICE') $h['amount_received']='-' . $h['amount_received'];
-                      $balance_due+=floatval($h['amount_received']);
+		      if (isset($h['amount_received'])) {
+			      if ($h['amount_received']!=="") $balance_due+=floatval($h['amount_received']);
+		      }
                       $h['running']=number_format($balance_due,2);
-		      //$h['amount_received']=number_format($h['amount_received'],2);
+		      if (isset($h['amount_received'])) {
+			      try {
+				      if ($h['amount_received']!=="") {
+					      if (is_numeric($h['amount_received'])) $h['amount_received']=number_format($h['amount_received'],2);
+				      }
+			      } 
+			      catch(Exception $e) { }
+	              }
                       array_push($hh,$h);
                  }
                  $output['payments']=$hh;
@@ -4948,7 +5142,7 @@ function getFamilyMedications($data) {
 		} else {
 $output['org_name']="Not Found";
 		}
-                $sql="select * from nua_company_invoice_adjustments where month_id = '" . $month_id . "' and company_id = " . $data['id'];
+                $sql="select * from nua_company_invoice_adjustments where company_id = " . $data['id'] . " order by month_id";
                 $adj=$this->X->sql($sql);
                 $output['adjustlist']=$adj;
 
@@ -5074,6 +5268,10 @@ $output['org_name']="Not Found";
                 $sql="select * from nua_company_plan where company_id = " . $data['id'] . " order by plan_code";
                 $e=$this->X->sql($sql);
                 $output['company_plans']=$e;
+
+                $sql="select * from nua_quoted_plan where company_id = " . $data['id'] . " order by plan_code";
+                $e=$this->X->sql($sql);
+                $output['quoted_plans']=$e;
 
 		$sql="select * from nua_invoice_load_terms where company_id = " . $data['id'] . " order by last_name, first_name";
 		$e=$this->X->sql($sql);
@@ -7299,7 +7497,7 @@ $formData2=array();
 		$termData['id']="";
 		$termData['plan_id']="";
 		$termData['employee_id']=$data['id'];
-		$termData['term_date']=$td;
+		//$termData['term_date']=$td;
 		$output['termData']=$termData;
 		
 		$output['contribution_levels']=$r;
@@ -7878,7 +8076,7 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 if ($last_month=='2022-01') $month_id='2022-02';
                 if ($last_month=='2022-02') $month_id='2022-03';
                 if ($last_month=='2022-03') $month_id='2022-04';
-                if ($last_month=='2022-04') $month_id='2022-04';
+                if ($last_month=='2022-04') $month_id='2022-05';
                 if ($last_month=='2022-05') $month_id='2022-06';
                 if ($last_month=='2022-06') $month_id='2022-07';
                 if ($last_month=='2022-07') $month_id='2022-08';
@@ -7905,7 +8103,6 @@ $sql="select * from nua_employee_plan_options where employee_id = " . $user['emp
                 array_push($monthlist,$month);
                 $output['monthlist']=$monthlist;
 
-$month_id = '2022-04';
                 $sql="select * from nua_company_invoice where month_id = '" . $month_id . "' order by company_name";
                 $d=$this->X->sql($sql);
                 $list=array();
@@ -8239,19 +8436,19 @@ $month_id = '2022-04';
 	       return $output;
 	}
 
-	function getCurrentTerminations($data) {
-		
-		$output=$this->start_output($data);
-		if ($output['user']['forced_off']>0) return $output;
-		$user=$output['user'];
-	        $output['id']=$data['id'];	
-		if ($data['id']=='') {
-                       $date=date_create();
-		       $month_id=date_format($date,'Y-m');
-		} else {
-		       $month_id=$data['id'];
+	        function getCurrentTerminations($data) {
 
-		} 
+                $output=$this->start_output($data);
+                if ($output['user']['forced_off']>0) return $output;
+                $user=$output['user'];
+                $output['id']=$data['id'];
+                if ($data['id']=='') {
+                       $date=date_create();
+                       $month_id=date_format($date,'Y-m');
+                } else {
+                       $month_id=$data['id'];
+
+                }
 
                 if ($month_id=='2022-03') $month_id="2022-04";
                 if ($month_id=='2022-02') $month_id="2022-03";
@@ -8270,63 +8467,60 @@ $month_id = '2022-04';
                 if ($month_id=='2021-01') $month_id="2021-02";
 
                 $output['month_id']=$month_id;
-                $sql="select * from nua_monthly_member_terminations where client_id <> '' and month_id = '" . $month_id . "' limit 500";
-                $d=$this->X->sql($sql); 
-                 
-		$l=array();
+                $sql="select * from nua_monthly_member_terminations where client_id <> '' and month_id >= '" . $month_id . "' limit 500";
+                $d=$this->X->sql($sql);
+
+                $l=array();
                  foreach($d as $e) {
                      $e['first_name']=str_replace('"',"'",$e['first_name']);
                      array_push($l,$e);
-		}
+                }
                 $output['list']=$l;
-                return $output;		
-   
+                return $output;
+
         }
 
-	function getCurrentAdditions($data) {
-		
-		$output=$this->start_output($data);
-		if ($output['user']['forced_off']>0) return $output;
-		$user=$output['user'];
-	        $output['id']=$data['id'];	
-		if ($data['id']=='') {
-                       $date=date_create();
-		       $month_id=date_format($date,'Y-m');
-		} else {
-		       $month_id=$data['id'];
+	        function getCurrentAdditions($data) {
 
-		} 
-                if ($month_id=='2022-03') { $add_month_id="2022-04"; $term_month_id = "2022-03"; $term_month_id2 = "2022-04"; $term_month_id3 = "2022-05"; }
-                if ($month_id=='2022-04') { $add_month_id="2022-05"; $term_month_id = "2022-04"; $term_month_id2 = "2022-05"; $term_month_id3 = "2022-06"; }
-                if ($month_id=='2022-05') { $add_month_id="2022-06"; $term_month_id = "2022-05"; $term_month_id2 = "2022-06"; $term_month_id3 = "2022-07"; }
+                $output=$this->start_output($data);
+                if ($output['user']['forced_off']>0) return $output;
+                $user=$output['user'];
+                $output['id']=$data['id'];
+                if ($data['id']=='') {
+                       $date=date_create();
+                       $month_id=date_format($date,'Y-m');
+                } else {
+                       $month_id=$data['id'];
+
+                }
+                if ($month_id=='2022-03') $month_id="2022-04";
+                if ($month_id=='2022-02') $month_id="2022-03";
+                if ($month_id=='2022-01') $month_id="2022-02";
+                if ($month_id=='2021-12') $month_id="2022-01";
+                if ($month_id=='2021-11') $month_id="2021-12";
+                if ($month_id=='2021-10') $month_id="2021-11";
+                if ($month_id=='2021-09') $month_id="2021-10";
+                if ($month_id=='2021-08') $month_id="2021-09";
+                if ($month_id=='2021-07') $month_id="2021-08";
+                if ($month_id=='2021-06') $month_id="2021-07";
+                if ($month_id=='2021-05') $month_id="2021-06";
+                if ($month_id=='2021-04') $month_id="2021-05";
+                if ($month_id=='2021-03') $month_id="2021-04";
+                if ($month_id=='2021-02') $month_id="2021-03";
+                if ($month_id=='2021-01') $month_id="2021-02";
 
                 $output['month_id']=$month_id;
-		$sql="select 'ADD' as action, employee_id, employee_code, dependent_code, last_name, first_name, ";
-		$sql.=" dob, gender, eff_dt, term_dt, apa_plan, coverage_level, id, company_id from nua_monthly_member_additions where month_id = '" . $add_month_id . "'";
-                $sql.=" union ";
-		$sql="select 'TERM' as action, employee_id, employee_code, dependent_code, last_name, first_name, ";
-		$sql.=" dob, gender, eff_dt, term_dt, apa_plan, coverage_level, id, company_id from nua_monthly_member_terminations where ";
-                $sql.=" month_id in ('" . $term_month_id . "','" . $term_month_id2 . "','" . $term_month_id3 . "') order by 1,3,4";
-
-                $d=$this->X->sql($sql); 
-		$l=array();
+                $sql="select * from nua_monthly_member_additions where client_id <> '' and month_id >= '" . $month_id . "' limit 500";
+                $d=$this->X->sql($sql);
+                $l=array();
                  foreach($d as $e) {
                      $e['first_name']=str_replace('"',"'",$e['first_name']);
-                     $sql="select company_name, apa_client_id from nua_company where id = " . $e['company_id'];
-                     $c=$this->X->sql($sql);
-                     $e['apa_client_id']=$c[0]['apa_client_id'];
-                     $e['company_name']=$c[0]['company_name'];
-                     $sql="select apa_member_id from nua_employee where id = " . $e['employee_id'];
-                     $c=$this->X->sql($sql);
-                     $e['apa_member_id']=$c[0]['apa_member_id'];
-
                      array_push($l,$e);
-		}
+                }
                 $output['list']=$l;
-                return $output;		
-   
-        }
+                return $output;
 
+		}
 	function getActivePlans($data) {
 		
 		$output=$this->start_output($data);
@@ -8428,7 +8622,7 @@ $month_id = '2022-04';
 
 		$sql="select id, org_id, company_name, contact_name, contact_phone, invoicing, status, ";
                 $sql.=" billing_contact_email as  insured_employees, insured_lives, infinity_id, broker_email ";
-                $sql.=" from nua_company order by company_name";
+                $sql.=" from nua_company where org_id <> 17 and (member_count <> 0 or status = 'enrolled' or invoicing = 'Y') order by company_name";
                      if ($data['id']=="active") {
 			$sql="select * from nua_company where org_id = " . $user['org_id'] . " and status in ('enrolled','terminated') and invoicing = 'Y' order by company_name";
                      }
@@ -8459,55 +8653,6 @@ $month_id = '2022-04';
 			array_push($a,$e);
 		}
 		
-
-/*
-		$sql="select id, org_id, company_name, contact_name, contact_phone, invoicing, status, insured_employees, insured_lives, infinity_id from nua_company where invoicing = 'N' order by company_name";
-                     if ($data['id']=="active") {
-			$sql="select * from nua_company where org_id = " . $user['org_id'] . " and status in ('enrolled','terminated') and invoicing = 'N' order by company_name";
-                     }
-                     if ($data['id']=="apa") {
-			    $sql="select * from nua_company where id in (select distinct company_id from nua_census) and invoicing = 'N' order by company_name";
-			} 
-                     if ($data['id']=="prospects") {
-			    $sql="select * from nua_company where org_id = " . $user['org_id'] . " and status in ('prospect') an invoicing = 'N'  order by company_name";
-                        }
-                     if ($data['id']=="enrolling") {
-			    $sql="select * from nua_company where org_id = " . $user['org_id'] . " and status in ('enrolling') and invoicing = 'N' order by company_name";
-                        }
-				
-                $d=$this->X->sql($sql); 
-		foreach($d as $e) {
-
-	            $sql="select count(*) as c from nua_census where company_id = " . $e['id'];
-	            $qu=$this->X->sql($sql);
-                    $e['enrollment_count']=$qu[0]['c'];	
-
-	            $sql="select count(*) as c from nua_bad where company_id = " . $e['id'];
-	            $qu=$this->X->sql($sql);
-                    $e['bad_count']=$qu[0]['c'];	
-
-                if ($e['org_id']!=17) {	
-         	       $sql="select count(*) as c from nua_company_plan where company_id = " . $e['id'];
-	        	$qu=$this->X->sql($sql);
-                        $e['plan_count']=$qu[0]['c'];
-                } else {
-         	       $sql="select count(*) as c from inf_client_plan where active = 'Y' and  clientId = '" . $e['infinity_id'] . "'";
-	        	$qu=$this->X->sql($sql);
-                        $e['plan_count']=$qu[0]['c'];
-                }	
-		$sql="select org_name from nua_org where id = " . $e['org_id'];
-		$g=$this->X->sql($sql);
-			if (sizeof($g)>0) {
-				$e['org_name']=$g[0]['org_name'];
-			} else {
-				$e['org_name']="";
-			}
-            $e['contact_phone']=substr($e['contact_phone'],0,1) . '-' . substr($e['contact_phone'],1,3) . '-' .  substr($e['contact_phone'],4,3)  . '-' .  substr($e['contact_phone'],7,4);
-
-			array_push($a,$e);
-		}
-		
-*/
         $output['list']=$a;
         return $output;		
 	}
@@ -8759,6 +8904,53 @@ $month_id = '2022-04';
 	 $post['table_name']="nua_company_plan";
          $post['action']="insert";
          $this->X->post($post);
+         
+         $results=array();
+         $results['error_code']=0;
+         $results['error_message']="Save Complete";
+         return $results;
+    }
+
+    function postQuotedPlan($data) {
+         $post=$data['data']['formData'];
+	 $post['table_name']="nua_quoted_plan";
+         $post['action']="insert";
+         $this->X->post($post);
+	 if ($post['accepted']=='Y') {
+	    $post['table_name']="nua_company_plan";
+            $post['action']="insert";
+
+	    $sql="select id from nua_company_plan where company_id = " . $post['company_id'] . " and plan_code = '" . strtoupper($post['plan_code']) . "'";
+	    $t=$this->X->sql($sql);
+            if (sizeof($t)>0) $post['id']=$t[0]['id']; else $post['id']="";
+	    $post['plan_code']=strtoupper($post['plan_code']);
+
+            $this->X->post($post);
+	 }
+         $results=array();
+         $results['error_code']=0;
+         $results['error_message']="Save Complete";
+         return $results;
+    }
+
+    function postAcceptQuotedPlan($data) {
+
+         $post=$data['data']['formData'];
+	 $sql="select * from nua_quoted_plan where id = " . $post['id'];
+	 $h=$this->X->sql($sql);
+         $p=array();
+	 foreach($h[0] as $name => $value) {
+		 $p[$name]=$value;
+	 }
+	 $p['table_name']="nua_company_plan";
+         $p['action']="insert";
+	 $p['plan_code']=strtoupper($p['plan_code']);
+
+	 $sql="select id from nua_company_plan where company_id = " . $p['company_id'] . " and plan_code = '" . strtoupper($p['plan_code']) . "'";
+	 $t=$this->X->sql($sql);
+         if (sizeof($t)>0) $p['id']=$t[0]['id'];
+
+         $this->X->post($p);
          
          $results=array();
          $results['error_code']=0;
